@@ -1,0 +1,150 @@
+<!DOCTYPE html >
+<meta charset="utf-8">
+
+<style>
+
+.node {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+.link {
+  stroke: #999;
+  stroke-opacity: .6;
+}
+
+</style>
+  <body>
+    <script type="text/javascript" src="d3_mod.js"></script>
+    <script type="text/javascript" src="seedrandom.min.js"></script>
+    <script type="text/javascript">
+
+  var test = 0;
+  Math.seedrandom('hello.');
+  if (test == 1) {
+	var radius = 500;
+	var nodesByName = {};
+	var width = 1160,
+	    height = 1160,
+    fill = d3.scale.category20();
+    var csvfile = "android_parsed_stitch_infringed_mod.csv"
+  }
+  else {
+  	var radius = 1000;
+    var nodesByName = {};
+	var width = 2160,
+	    height = 2160,
+	    fill = d3.scale.category20();
+	var csvfile = "the_java.csv"
+  }
+var debug = 0;
+
+var projection = d3.geo.orthographic()
+    .scale(radius - 2)
+    .translate([radius, radius])
+    .clipAngle(90)
+    .precision(0);
+
+d3.csv(csvfile, function(error,links) {
+links.forEach(function(link) {
+    link.source = nodeByName(link.EntName_src);
+    link.target = nodeByName(link.EntName_target);
+  // define whether a node is class or interface
+  if ( link.EntType_src.indexOf("Class") > -1 )
+    {nodeByName(link.EntName_src).type = "Class";}
+  else if (link.EntType_src.indexOf("Method") > -1)
+    {nodeByName(link.EntName_src).type = "Class";}
+  else {nodeByName(link.EntName_src).type = "Interface"};
+
+  // degine whether a node is 37
+  if (link.is37 == "1") {nodeByName(link.EntName_target).is37 = 1};
+  
+  });
+
+  function nodeByName(name) {
+    return nodesByName[name] || (nodesByName[name] = {name: name});
+  }
+
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .call(d3.behavior.drag()
+    .origin(function() { var r = projection.rotate(); return {x: 2 * r[0], y: -2 * r[1]}; })
+    .on("drag", function() { tick(); var r = [d3.event.x / 2, -d3.event.y / 2, projection.rotate()[2]]; t0 = Date.now(); origin = r; projection.rotate(r); }))
+
+  // Extract the array of nodes from the map by name.
+  var nodes = d3.values(nodesByName);
+
+ 	var node = svg.selectAll(".node")
+    .data(nodes)
+    .enter().append("g")
+    .attr("class", "node")
+
+      //draws the node circles and colors according to type.
+ 	node.append("circle")
+    .attr("r",6)
+    .style("fill", "steelblue")
+    .attr("cx", function(d) { return d.x; })
+    .attr("cy", function(d) { return d.y; })
+
+    var link = svg.selectAll(".link")
+    .data(links)
+    .enter().append("line")
+    .attr("class", "link")
+
+var force = d3.layout.force()
+    .nodes(nodes)
+    .links(links)
+    .radius(radius)
+    .linkDistance(10)
+    .linkStrength(function(d) {
+    if (d.RefType =="Java Implement Couple") {return 0.0} //inplementation
+    else if (d.RefKind =="Define") {return 0.0} //method return
+    else if (d.RefKind =="Typed") {return 0.0} //method param
+    else {return 1}}) //class and interface inheritance extends
+    .friction(0.9)
+    .size([width, height])
+    .on("end",end)
+    .on("tick",tick)
+    .charge(-90)
+    .start();
+
+    function geodesic(node,node2,radius) {
+        var gt = Math.sin(node.polar)*Math.sin(node2.polar)*Math.cos(node2.azimuth - node.azimuth)
+            +Math.cos(node.polar)*Math.cos(node2.polar)
+        return Math.acos(gt)*radius;
+    }
+
+    function tock(e) {
+      console.log("tock");
+      }
+
+    function tick(e) {
+      console.log("tick");
+      node.attr("transform", function(d) {var coord = projection([d.azimuth*180/Math.PI-180,d.polar*180/Math.PI-90]);
+      return "translate(" + coord[0] +"," + coord[1] + ")";});
+      link.attr("x1", function(d) { return projection([d.source.azimuth*180/Math.PI-180,d.source.polar*180/Math.PI-90])[0]; })
+          .attr("y1", function(d) { return projection([d.source.azimuth*180/Math.PI-180,d.source.polar*180/Math.PI-90])[1]; })
+          .attr("x2", function(d) { return projection([d.target.azimuth*180/Math.PI-180,d.target.polar*180/Math.PI-90])[0]; })
+          .attr("y2", function(d) { return projection([d.target.azimuth*180/Math.PI-180,d.target.polar*180/Math.PI-90])[1]; });  
+
+    	}
+
+      function end(e) {
+      node.attr("r", function(d) {console.log(d.coord[0],d.coord[1],d.coord[2], d.name); return 6});
+        tick();
+
+      }
+
+});
+    var view = 0;
+    function rotate() {
+    	if (view < 3) {
+    		view += 1;
+    	}
+    	else view = 0;
+    }
+    </script>
+  </body>
+</html>

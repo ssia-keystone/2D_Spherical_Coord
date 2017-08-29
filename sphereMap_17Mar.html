@@ -1,0 +1,101 @@
+<!DOCTYPE html >
+<meta charset="utf-8">
+
+<style>
+
+.node {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+.link {
+  stroke: #999;
+  stroke-opacity: .6;
+}
+
+</style>
+  <body>
+    <script type="text/javascript" src="d3_mod.js"></script>
+    <script type="text/javascript" src="seedrandom.min.js"></script>
+    <script type="text/javascript">
+
+
+  Math.seedrandom('hello.');
+var debug = 0;
+var radius = 200;
+var width = 960,
+    height = 960,
+    fill = d3.scale.category20();
+
+//var nodes = d3.range(100).map(function(i) {
+//  return {index: i};
+//});
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+
+	var nodes = [{index:0}];
+    var links = [];
+	for (i=1; i< 320; i++) {
+        source = nodes[~~(Math.random() * nodes.length)]
+        target = {index:i}
+        links.push({source:source, target:target});
+        nodes.push(target)
+	//nodes.push({polar: polar, azimuth: azimuth, coord: [x, y, z]});
+
+	}
+
+ 	var node = svg.selectAll(".node")
+    .data(nodes)
+    .enter().append("g")
+    .attr("class", "node")
+
+      //draws the node circles and colors according to type.
+ 	node.append("circle")
+    .attr("r",6)
+    .style("fill", "steelblue")
+    .attr("cx", function(d) { return d.x; })
+    .attr("cy", function(d) { return d.y; })
+
+    var link = svg.selectAll(".link")
+    .data(links)
+    .enter().append("line")
+    .attr("class", "link")
+
+var radius = 200;
+
+var force = d3.layout.force()
+    .nodes(nodes)
+    .links(links)
+    .radius(radius)
+    .friction(0.1)
+    .size([width, height])
+    .on("tick", tick)
+    .charge(-120)
+    .start();
+
+    function geodesic(node,node2,radius) {
+        var gt = Math.sin(node.polar)*Math.sin(node2.polar)*Math.cos(node2.azimuth - node.azimuth)
+            +Math.cos(node.polar)*Math.cos(node2.polar)
+        return Math.acos(gt)*radius;
+    }
+
+    function tick(e) {
+	node.attr("transform", function(d) { return "translate(" + (d.coord[0]+radius) + "," + (d.coord[1]+radius + 20) + ")"; });
+    node.selectAll("circle").attr("visibility", function(d) { return d.coord[2] > 0 ? "hidden" : "visible"});
+
+        link.attr("x1", function(d) { return d.source.coord[0]+radius; })
+        .attr("y1", function(d) { return d.source.coord[1]+radius + 20; })
+        .attr("x2", function(d) { return d.target.coord[0]+radius; })
+        .attr("y2", function(d) { return d.target.coord[1]+radius + 20; });  
+    link.attr("visibility", function(d) { return (d.source.coord[2] > 0 || d.target.coord[2] > 0) ? "hidden" : "visible"});
+
+  //  console.log(a = geodesic(nodes[0],nodes[1],radius))
+  //  console.log("diff: ", a-olda);
+
+    }
+
+    </script>
+  </body>
+</html>

@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<!-- Force visualization: takes in a csv file with information on link types, node types
+and other information such as whether it is infringed or not. Generates d3 force visualization-->
+<style>
+
+.link {
+  stroke: #ccc;
+}
+
+.inflink {
+  stroke: crimson;
+  stroke-width: 2.5px;
+}
+
+.implementlink {
+  stroke: grey;
+  opacity: 0.8;
+}
+
+.classlink {
+  stroke: grey;
+  stroke-width: 2.5px;
+}
+
+.interfacelink {
+  stroke: grey;
+  stroke-width: 2.5px;
+}
+
+.node text {
+  pointer-events: none;
+}
+
+text.shadow {
+    stroke: white;
+    stroke-width: 10px;
+    opacity: 0.9;
+}
+
+.circle {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+  #red, #green, #blue {
+    float: left;
+    clear: left;
+    width: 300px;
+    margin: 15px;
+  }
+  #red .ui-slider-range { background: #ef2929; }
+  #red .ui-slider-handle { border-color: #ef2929; }
+  #green .ui-slider-range { background: #8ae234; }
+  #green .ui-slider-handle { border-color: #8ae234; }
+  #blue .ui-slider-range { background: #729fcf; }
+  #blue .ui-slider-handle { border-color: #729fcf; }
+    #swatch {
+    width: 120px;
+    height: 100px;
+    margin-top: 18px;
+    margin-left: 350px;
+    background-image: none;
+  }
+</style>
+<body>
+
+<!-- d3 script for visualisation, seedrandom to achieve repeatable results
+Alternatively, you might get maximised versions, or getthem from online -->
+<!-- <script type="text/javascript" src="d3.js"></script> -->
+<script type="text/javascript" src="seedrandom.min.js"></script>
+<!-- <script type="text/javascript" src="d3.v3.min.js"></script> -->
+<script type="text/javascript" src="d3_mod.js"></script>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+  <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+  <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+<!--  <link rel="stylesheet" href="/resources/demos/style.css"> -->
+
+
+
+
+
+<!-- Insert random buttons here to create different views -->
+<div id="option">
+    <input name="OnlyShowIO" 
+           type="button" 
+           style="font-size:40px"
+           value="Only Show IO" 
+           onclick="ShowIO()" />
+    <input name="packageViewButton" 
+           type="button" 
+           style="font-size:40px"
+           value="Toggle the 37 Packages" 
+           onclick="toggle37()" />
+    <input name="infringedViewButton" 
+           type="button" 
+           style="font-size:40px"
+           value="Toggle the Infringed" 
+           onclick="toggleInfringed()" />
+    <input name="OnlyShowInfringedButton" 
+           type="button" 
+           style="font-size:40px"
+           value="Only Show Infringed" 
+           onclick="ShowAllCode()" />
+    <input name="showClassNodes" 
+           type="button" 
+           style="font-size:40px"
+           value="Show Class Nodes" 
+           onclick="showClassNodes()" />
+    <input name="showInterfaceNodes" 
+           type="button" 
+           style="font-size:40px"
+           value="Show Interface Nodes" 
+           onclick="showInterfaceNodes()" />
+
+    <input name="showInterfaceExtensionLink" 
+           type="button" 
+           style="font-size:40px"
+           value="Show Interface Extensions" 
+           onclick="showInterfaceExtensionLinks()" />
+
+    <input name="showClassExtensionLink" 
+           type="button" 
+           value="Show Class Extensions" 
+           style="font-size:40px"
+           onclick="showClassExtensionLinks()" />
+
+    <input name="showImplementationLink" 
+           type="button"
+           style="font-size:40px"
+           value="Show Implementation Links" 
+           onclick="showImplementationLinks()" />
+
+    <input name="showMethodLink" 
+           type="button"
+           style="font-size:40px"
+           value="Show Method Links" 
+           onclick="showMethodLinks()" />
+
+    <input name="showJavaLangInfringements" 
+           type="button"
+           style="font-size:40px"
+           value="Show Java Lang Infringements" 
+           onclick="showJavaLang()" />
+
+    <input name="show61Infringements" 
+           type="button"
+           style="font-size:40px"
+           value="Show 61 infringements" 
+           onclick="show61()" />
+
+    <input name="masterButton" 
+           type="button" 
+           style="font-size:40px"
+           value="Play The Story" 
+           onclick="playTheStory()" />
+</div>
+<!--<p class="ui-state-default ui-corner-all ui-helper-clearfix" style="padding:10px;">
+  <span class="ui-icon ui-icon-pencil" style="float:left; margin:-2px 5px 0 0;"></span>
+  Modify Infringed Nodes Colors
+</p>
+ 
+<div id="red"></div>
+<div id="green"></div>
+<div id="blue"></div> -->
+ 
+<!-- <div id="swatch" class="ui-widget-content ui-corner-all"></div> -->
+<script>
+//Button Variables, infringed set, width and heights
+var is37On = 1; //for the 37 packages button
+var infIsOn = 0; //for the togglenfringed button
+var onlyInfIsOn = 0; //for the Only show infringed button
+var onlyIOIsOn = 0; //for the Only show infringed button
+var showClassNodesIsOn = 1;
+var showJavaLangIsOn = 1;
+var show61IsOn = 1;
+var showInterfaceNodesIsOn = 1;
+var showMethodLinksIsOn = 1;
+var showInterfaceExtensionLinksIsOn = 1;
+var showClassExtensionLinksIsOn = 1;
+var showImplementationLinksIsOn =1;
+var playTheStoryCounter = 0;
+
+var toMatch = "match"
+var width = 4500, height = 4500;
+
+var myGoldArray = [
+"java.lang.Deprecated",
+"java.lang.Override",
+"java.lang.annotation.Inherited",
+"java.lang.annotation.Retention",
+"java.lang.annotation.Target",
+"java.lang.Object",
+"java.io.Serializable",
+"java.lang.Cloneable"]
+
+var my61Array = [
+"java.lang.AssertionError",
+"java.lang.Boolean",
+"java.lang.Byte",
+"java.lang.Character",
+"java.lang.Class",
+"java.lang.ClassLoader",
+"java.lang.Cloneable",
+"java.lang.Deprecated",
+"java.lang.Double",
+"java.lang.Enum",
+"java.lang.Error",
+"java.lang.Exception",
+"java.lang.Float",
+"java.lang.IllegalArgumentException",
+"java.lang.Integer",
+"java.lang.Iterable",
+"java.lang.Long",
+"java.lang.NoClassDefFoundError",
+"java.lang.NoSuchFieldError",
+"java.lang.Object",
+"java.lang.Override",
+"java.lang.RuntimeException",
+"java.lang.Short",
+"java.lang.String",
+"java.lang.Throwable",
+"java.lang.Void",
+"java.lang.annotation.Annotation",
+"java.lang.annotation.Retention",
+"java.lang.annotation.Target",
+"java.util.Iterator",
+"java.io.Serializable",
+"java.lang.SuppressWarnings",
+"java.lang.annotation.Inherited",
+"java.lang.Math",
+"java.lang.Runtime",
+"java.lang.System",
+"java.lang.Thread",
+"java.lang.ThreadGroup",
+"java.lang.AbstractMethodError",
+"java.lang.ArithmeticException",
+"java.lang.ArrayIndexOutOfBoundsException",
+"java.lang.ArrayStoreException",
+"java.lang.ClassCastException",
+"java.lang.ClassCircularityError",
+"java.lang.ClassFormatError",
+"java.lang.ExceptionInInitializerError",
+"java.lang.IllegalAccessError",
+"java.lang.IllegalMonitorStateException",
+"java.lang.IncompatibleClassChangeError",
+"java.lang.InstantiationError",
+"java.lang.InstantiationException",
+"java.lang.InterruptedException",
+"java.lang.LinkageError",
+"java.lang.NegativeArraySizeException",
+"java.lang.NoSuchMethodError",
+"java.lang.NullPointerException",
+"java.lang.OutOfMemoryError",
+"java.lang.StackOverflowError",
+"java.lang.UnsatisfiedLinkError",
+"java.lang.VerifyError",
+"java.lang.VirtualMachineError"
+];
+
+
+//Moves mouseover nodes to the front for greater visibility
+d3.selection.prototype.moveToFront = function() {
+  return this.each(function(){
+   this.parentNode.appendChild(this);
+  });
+};  
+  
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+  
+// increase the charge strength and reduce the link distance
+// graph initialization is more chaotic however
+var force = d3.layout.force()
+  .charge(-60) //orig -30
+  .linkDistance(10) //orign 20
+  // weaken implementation link strength
+  //package links and extension links remain strong
+  .size([width, height]);
+d3.csv("android_parsed_stitch_infringed.csv", function(error, links) {
+//d3.csv("java_parsed_stitch_166pkg_objsplit_no61.csv", function(error, links) {
+//d3.csv("java_parsed_stitch_166pkg_objsplit_withparents.csv", function(error, links) {
+//d3.csv("java_parsed_stitch_166pkg_objsplit_nolang.csv", function(error, links) {
+//d3.csv("jps_methods_noprivate_clean_no61.csv", function(error, links) {
+  if (error) throw error;
+  //seedrandom
+  Math.seedrandom('hello.');
+  var nodesByName = {};
+  var debug =0;
+  var radius = 400;
+  var width = 960,height = 960,
+  fill = d3.scale.category20();
+
+  // Create nodes for each unique source and target.
+  //marks infringed nodes and links, marks nodes as classes or interfaces
+  links.forEach(function(link) {
+    link.source = nodeByName(link.EntName_src);
+    link.target = nodeByName(link.EntName_target);
+
+  //Create a variable for isIO/nio
+  if (link.EntName_src.indexOf("java.io") > -1 || link.EntName_src.indexOf("java.nio") > -1)
+      {link.source.isIO = 1;}
+  if (link.EntName_target.indexOf("java.io") > -1 || link.EntName_target.indexOf("java.nio") > -1)
+      {link.target.isIO = 1;}
+  if (link.source.isIO == 1 && link.target.isIO == 1) {link.isIO = 1;}
+
+
+  if (link.EntName_src.indexOf("java.lang") > -1)
+  {link.source.isLang = 1;}
+  if (link.EntName_target.indexOf("java.lang") > -1)
+    {link.target.isLang = 1;}
+  if (link.source.isLang == 1 || link.target.isLang == 1)
+    {link.isLang = 1;}
+
+  var index;
+  for (index = 0; index < myGoldArray.length; index++)
+  {
+    if (link.EntName_src.indexOf(myGoldArray[index]) > -1)
+    {link.source.is61 = 1;}
+    if (link.EntName_target.indexOf(myGoldArray[index]) > -1)
+    {link.target.is61 = 1;}
+  }
+ // if (link.source.is61 == 1 || link.target.is61 == 1)
+ 	if (link.Is_Infringed == "purple")
+    {link.is61 = 1;}
+
+
+  if (link.Is_Infringed == toMatch || link.Is_Infringed == "purple") {
+    nodeByName(link.EntName_src).infringed = 1
+    nodeByName(link.EntName_target).infringed = 1
+	link.infringed = 1}   
+
+  // define whether a node is class or interface
+  if ( link.EntType_src.indexOf("Class") > -1 )
+    {nodeByName(link.EntName_src).type = "Class";}
+  else if (link.EntType_src.indexOf("Method") > -1)
+    {nodeByName(link.EntName_src).type = "Class";}
+  else {nodeByName(link.EntName_src).type = "Interface"};
+
+  // degine whether a node is 37
+  if (link.is37 == "1") {nodeByName(link.EntName_target).is37 = 1};
+  
+  });
+
+  // Extract the array of nodes from the map by name.
+  var nodes = d3.values(nodesByName);
+
+  // Create the link lines and color them based on style
+  var link = svg.selectAll(".link")
+      .data(links)
+    .enter().append("g")
+    .attr("class", "link")
+    .append("line")
+     .attr("class", function(d) {
+    if (d.Is_Infringed == toMatch) {return "inflink";} //implement
+    else if (d.RefType == "Java Implement Couple") {return "implementlink"} //implement
+    else if (d.RefKind == "Define") {return "implementlink"} //method
+    else if (d.RefKind == "Typed") {return "implementlink"} //method
+  else if (d.EntType_src.indexOf("Class") > -1) {return "classlink"} //class extension
+  else if (d.EntType_src.indexOf("Interface") > -1) {return "interfacelink"} //interface extension
+  else { return "link"};}); 
+
+  // Create the node circles.
+  //mouseover function displays names
+  var node = svg.selectAll(".node")
+      .data(nodes)
+    .enter().append("g")
+      .attr("class", "node")
+    .on("mouseover",function(d) {
+      var sel = d3.select(this);
+      sel.moveToFront();
+        d3.select(this).append("text")
+      .attr("dx",16)
+      .attr("dy",".35em")
+        .attr("class","shadow")
+      .text(d.name.toUpperCase())
+      d3.select(this).append("text")
+      .attr("dx",16)
+      .attr("dy",".35em")
+      .text(d.name.toUpperCase())
+      })
+    .on("click",function(d) {
+      var sel = d3.select(this);
+      sel.moveToFront();
+        d3.select(this).append("text")
+      .attr("dx",16)
+      .attr("dy",".35em")
+        .attr("class","shadow")
+      .text(d.name.toUpperCase())
+      d3.select(this).append("text")
+      .attr("dx",16)
+      .attr("dy",".35em")
+      .text(d.name.toUpperCase())
+      })
+    .on("mouseout",function(d) {
+        d3.select(this).select("text").remove();
+        d3.select(this).select("text").remove();
+      }) 
+      ;
+
+      //draws the node circles and colors according to type.
+  node.append("circle")
+    .attr("r",6)
+    .style("fill",function(d) {
+    if (d.infringed == 1) {return "crimson"} //infringed
+    else if (d.type == "Interface") {return "green"} //interface
+    else {return "steelblue"}}); //colour
+  
+var radius = 600;
+
+var force = d3.layout.force()
+    .nodes(nodes)
+    .links(links)
+    .radius(radius)
+    .on("tick", tick)
+    .start();
+
+    function tick(e) {
+  node.attr("transform", function(d) { return "translate(" + (d.coord[0]+radius+20) + "," + (d.coord[1]+radius + 20) + ")"; });
+    node.selectAll("circle").attr("visibility", function(d) { return d.coord[2] > 0 ? "hidden" : "visible"});
+
+        link.attr("x1", function(d) { return d.source.coord[0]+radius + 20; })
+        .attr("y1", function(d) { return d.source.coord[1]+radius + 20; })
+        .attr("x2", function(d) { return d.target.coord[0]+radius + 20; })
+        .attr("y2", function(d) { return d.target.coord[1]+radius + 20; });  
+    link.attr("visibility", function(d) { return (d.source.coord[2] > 0 || d.target.coord[2] > 0) ? "hidden" : "visible"});
+
+
+    }
+
+updateVisibility()
+  svg.selectAll(".node").sort(function (a, b) { // select the parent and sort the path's
+      if (a.is37 == 1) return 1;       // a is not the hovered element, send "a" to the back
+      else return -1; });
+
+  function nodeByName(name) {
+    return nodesByName[name] || (nodesByName[name] = {name: name});
+  }
+});
+
+//toggles the appearance of text for the 37 packages
+function toggle37() {
+
+  if (is37On == 0) {
+    is37On = 1
+    var node = d3.select("body").selectAll("svg").selectAll(".node")
+    var nodeSpecial = node.filter(function(d){return d.is37 == 1});
+    nodeSpecial.append("text").attr("dx",16).attr("dy",".35em") .attr("class","shadow") .style("font", "30px Georgia, serif").text(function(d) {return d.name.toUpperCase()} );
+    nodeSpecial.append("text").attr("dx",16).attr("dy",".35em").style("font", "30px Georgia, serif") .text(function(d) {return d.name.toUpperCase()} );
+  }
+  else {
+    is37On = 0
+    var node = d3.select("body").selectAll("svg").selectAll(".node")
+    var nodeSpecial = node.filter(function(d){return d.is37 == 1});
+    nodeSpecial.select("circle").remove();
+    nodeSpecial.selectAll("text").remove();
+
+    nodeSpecial.append("circle")
+    .attr("r",6)
+    .style("fill",function(d) {
+    if (d.infringed == 1) {return "crimson"}
+    else if (d.type == "Interface") {return "green"}
+    else {return "steelblue"}}); 
+  }
+  updateVisibility();
+}
+
+//toggles the appearance of infringed nodes
+function toggleInfringed() {
+  if (infIsOn == 0) {    infIsOn = 1 }
+  else {    infIsOn = 0  }
+  updateColour();
+}
+
+//toggles the visibility of non infringed nodes
+function ShowAllCode() {
+  if (onlyInfIsOn == 0) {  onlyInfIsOn = 1}
+  else {  onlyInfIsOn = 0  }
+  updateVisibility();
+}
+
+//toggles the visibility of non io and nio nodes
+function ShowIO() {
+  if (onlyIOIsOn == 0) {    onlyIOIsOn = 1}
+  else {    onlyIOIsOn = 0  }
+  updateVisibility();
+}
+
+//toggles the visibility of non infringed nodes
+function showJavaLang() {
+  if (showJavaLangIsOn == 0) { showJavaLangIsOn  = 1}
+  else {  showJavaLangIsOn = 0  }
+  updateColour();
+  updateVisibility();
+}
+
+//toggles the visibility of non infringed nodes
+function show61() {
+  if (show61IsOn == 0) { show61IsOn  = 1}
+  else {  show61IsOn = 0  }
+  updateColour();
+  updateVisibility();
+}
+
+//toggles the visibility of non infringed nodes
+function showInterfaceNodes() {
+  if (showInterfaceNodesIsOn == 0) { showInterfaceNodesIsOn  = 1}
+  else {  showInterfaceNodesIsOn = 0  }
+  updateVisibility();
+}
+
+//toggles the visibility of non infringed nodes
+function showClassNodes() {
+  if (showClassNodesIsOn == 0) {  showClassNodesIsOn = 1}
+  else {  showClassNodesIsOn = 0  }
+  updateVisibility();
+}
+
+//toggles the visibility of non infringed nodes
+function showImplementationLinks() {
+  if (showImplementationLinksIsOn == 0) {  showImplementationLinksIsOn = 1}
+  else {  showImplementationLinksIsOn = 0  }
+  updateVisibility();
+}
+
+//toggles the visibility of non infringed nodes
+function showMethodLinks() {
+  if (showMethodLinksIsOn == 0) {  showMethodLinksIsOn = 1}
+  else {  showMethodLinksIsOn = 0  }
+  updateVisibility();
+}
+
+//toggles the visibility of non infringed nodes
+function showClassExtensionLinks() {
+  if (showClassExtensionLinksIsOn == 0) {  showClassExtensionLinksIsOn = 1}
+  else {  showClassExtensionLinksIsOn = 0  }
+  updateVisibility();
+}
+
+//toggles the visibility of non infringed nodes
+function showInterfaceExtensionLinks() {
+  if (showInterfaceExtensionLinksIsOn == 0) {  showInterfaceExtensionLinksIsOn = 1}
+  else {  showInterfaceExtensionLinksIsOn = 0  }
+  updateVisibility();
+}
+
+//toggles the visibility of non infringed nodes
+function playTheStory() {
+  playTheStoryCounter = playTheStoryCounter+ 1;
+  if (playTheStoryCounter == 11) {playTheStoryCounter = 1};
+  //scene start
+  if (playTheStoryCounter == 1){
+    //Only java.io and java.nio class nodes
+    showImplementationLinksIsOn     = 0;
+    showClassExtensionLinksIsOn     = 0;
+    showInterfaceExtensionLinksIsOn = 0;
+    showInterfaceNodesIsOn          = 0;
+    onlyIOIsOn                      = 1;
+    showClassNodesIsOn              = 1;
+    
+  }
+  if (playTheStoryCounter == 2){
+    showClassExtensionLinksIsOn     = 1;    
+  }
+  if (playTheStoryCounter == 3){
+    showInterfaceNodesIsOn          = 1;
+  }
+  if (playTheStoryCounter == 4){
+    showInterfaceExtensionLinksIsOn = 1;
+  }
+  if (playTheStoryCounter == 5){
+    showImplementationLinksIsOn     = 1;
+  }
+  if (playTheStoryCounter == 6){
+    onlyIOIsOn                      = 0;
+    showImplementationLinksIsOn     = 0;  
+    showClassExtensionLinksIsOn     = 0;  
+    showInterfaceExtensionLinksIsOn = 0;
+    showInterfaceNodesIsOn          = 0;
+  }
+  if (playTheStoryCounter == 7){
+    showClassExtensionLinksIsOn     = 1; 
+  }
+  if (playTheStoryCounter == 8){
+    showInterfaceNodesIsOn          = 1;
+  }
+  if (playTheStoryCounter == 9){
+    showInterfaceExtensionLinksIsOn = 1;
+  }
+  if (playTheStoryCounter == 10){
+    showImplementationLinksIsOn     = 1;
+  }
+
+  updateVisibility();
+}
+
+
+//toggles the visibility of non io and nio nodes
+function updateVisibility() {
+  console.log("updating visibility");
+  var link = d3.select("body").selectAll("svg").selectAll(".link")
+  var node = d3.select("body").selectAll("svg").selectAll(".node")
+
+  link.select("line")
+  .attr("visibility", function(d) {
+  if (d.isIO != 1 && onlyIOIsOn) {return "hidden"}
+  else if (!d.infringed && onlyInfIsOn) {return "hidden"}
+  else if (d.isLang == 1 && onlyInfIsOn && !showJavaLangIsOn) { return "hidden"}
+  else if (d.is61 == 1 && onlyInfIsOn && !show61IsOn) {    return "hidden"}
+  else if (!showImplementationLinksIsOn && (d.RefType == "Java Implement Couple")) {return "hidden"}
+  else if (!showMethodLinksIsOn && ( d.RefKind == "Define" || d.RefKind == "Typed")) {return "hidden"}
+  else if (!showClassExtensionLinksIsOn && d.EntType_src.indexOf("Class") > -1) {return "hidden"}
+  else if (!showInterfaceExtensionLinksIsOn && d.EntType_src.indexOf("Interface") > -1) {return "hidden"}
+    else {return "visible"}})
+  
+  node.selectAll("circle")
+  .attr("visibility", function(d) {
+    if (d.isIO != 1 && onlyIOIsOn) {return "hidden"}
+    else if (d.infringed != 1 && onlyInfIsOn) {return "hidden"}
+    else if (d.isLang == 1 && onlyInfIsOn && !showJavaLangIsOn) {return "hidden"}
+    else if (d.is61 == 1 && onlyInfIsOn && !show61IsOn) {return "hidden"}
+    else if (!showClassNodesIsOn && d.type != "Interface") {return "hidden"}
+    else if (!showInterfaceNodesIsOn && d.type == "Interface") {return "hidden"}
+    else {return "visible"}})
+    node.selectAll("text")
+  .attr("visibility", function(d) {
+    if (d.isIO != 1 && onlyIOIsOn) {return "hidden"}
+    else if (d.infringed != 1 && onlyInfIsOn) {return "hidden"}
+    else if (!showClassNodesIsOn && d.type != "Interface") {return "hidden"}
+    else if (!showInterfaceNodesIsOn && d.type == "Interface") {return "hidden"}
+    else {return "visible"}})
+}
+
+  function hexFromRGB(r, g, b) {
+    var hex = [
+      r.toString( 16 ),
+      g.toString( 16 ),
+      b.toString( 16 )
+    ];
+    $.each( hex, function( nr, val ) {
+      if ( val.length === 1 ) {
+        hex[ nr ] = "0" + val;
+      }
+    });
+    return hex.join( "" ).toUpperCase();
+  }
+  
+  function updateColour() {
+    var link = d3.select("body").selectAll("svg").selectAll(".link")
+    var node = d3.select("body").selectAll("svg").selectAll(".node")
+
+    link.select("line")
+    .attr("style", function(d) {
+    if (d.infringed && infIsOn) {
+      if ((d.isLang == 1 && !showJavaLangIsOn) || (d.is61 == 1 && !show61IsOn)) {return "stroke:grey"}
+      else{ return "stroke:crimson"}
+    }
+    else {return "stroke:grey"}})
+  
+  node.select("circle")
+  .attr("style", function(d) {
+    if (d.infringed == 1 && infIsOn) {
+      if ((d.isLang == 1 && !showJavaLangIsOn) || (d.is61 == 1 && !show61IsOn)) {
+        if (d.type == "Interface") {return "fill:green"}
+        else {return "fill:steelblue"}
+      }
+      else {return "fill:crimson"}
+    }
+    else if (d.type == "Interface") {return "fill:green"}
+    else {return "fill:steelblue"}})
+
+  }
+
+  </script>
+
+
+</script>

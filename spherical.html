@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Spherical Force-Directed Layout</title>
+     <script src="http://d3js.org/d3.v3.min.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/dat-gui/0.5/dat.gui.min.js"></script>
+    <script type="text/javascript" src=http://davidbau.com/encode/seedrandom-min.js></script>
+    <style type="text/css">
+body {
+  padding: 0;
+  margin: 0;
+}
+path.node {
+  stroke-width: 1.5px;
+}
+
+path.link {
+  stroke: #999;
+  fill-opacity: 0
+}
+
+.link {
+  stroke: #ccc;
+  fill-opacity: 0
+}
+
+.inflink {
+  stroke: crimson;
+  stroke-width: 2.5px;
+  fill-opacity: 0
+}
+
+.implementlink {
+  stroke: grey;
+  opacity: 0.8;
+  fill-opacity: 0
+}
+
+.node text {
+  pointer-events: none;
+}
+
+text.shadow {
+    stroke: white;
+    stroke-width: 10px;
+    opacity: 0.9;
+}
+.classlink {
+  stroke: grey;
+  stroke-width: 2.5px;
+  fill-opacity: 0
+}
+
+.interfacelink {
+  stroke: grey;
+  stroke-width: 2.5px;
+  fill-opacity: 0
+}
+
+.classNode {
+  fill: "steelblue";
+}
+
+.interfaceNode {
+  fill: "green";
+}
+
+.node text {
+  pointer-events: none;
+}
+
+text.shadow {
+    stroke: white;
+    stroke-width: 10px;
+    opacity: 0.9;
+}
+
+.circle {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+.infcircle {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+.glowcircle {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+    </style>
+  </head>
+  <body>
+    <script type="text/javascript">
+
+    var toMatch = "match"
+    //Button Variables, infringed set, width and heights
+var is37On = 1; //for the 37 packages button
+var infIsOn = 1; //for the togglenfringed button
+var onlyInfIsOn = 0; //for the Only show infringed button
+var onlyIOIsOn = 0; //for the Only show infringed button
+var showClassNodesIsOn = 1;
+var showJavaLangIsOn = 1;
+var show61IsOn = 1;
+var showInterfaceNodesIsOn = 1;
+var showMethodLinksIsOn = 1;
+var showInterfaceExtensionLinksIsOn = 1;
+var showClassExtensionLinksIsOn = 1;
+var showImplementationLinksIsOn =1;
+var playTheStoryCounter = 0;
+var projections = {
+  "Albers": d3.geo.albers(),
+  "Azimuthal Equal Area": d3.geo.azimuthalEqualArea(),
+  "Azimuthal Eqidistant": d3.geo.azimuthalEquidistant(),
+  "Conic Conformal": d3.geo.conicConformal(),
+  "Conic Equal Area": d3.geo.conicEqualArea(),
+  "Conic Equidistant": d3.geo.conicEquidistant(),
+  "Eqirectangular": d3.geo.equirectangular(),
+  "Gnomonic": d3.geo.gnomonic(),
+  "Mercator": d3.geo.mercator(),
+  "Orthographic": d3.geo.orthographic(),
+  "Stereographic": d3.geo.stereographic(),
+  "Transverse Mercator": d3.geo.transverseMercator(),
+};
+
+
+var myGoldArray = [
+"java.lang.Deprecated",
+"java.lang.Override",
+"java.lang.annotation.Inherited",
+"java.lang.annotation.Retention",
+"java.lang.annotation.Target",
+"java.lang.Object",
+"java.io.Serializable",
+"java.lang.Cloneable"]
+
+
+var config = { "projection": "Orthographic", "clip": true, "friction": .9, "linkStrength": 1, "linkDistance": 20, "charge": 30, "gravity": 0.1, "theta": .8 };
+var gui = new dat.GUI();
+var nodesByName = {};
+
+var projectionChanger = gui.add(config, "projection", Object.keys(projections));
+//http://stackoverflow.com/a/3417242
+function wrapIndex(i, i_max) {
+     return ((i % i_max) + i_max) % i_max;
+}
+projectionChanger.onChange(function(value) {
+  projection = projections[value]
+  .scale(height/2)
+  .translate([(width/2), height/2])
+  .clipAngle(config["clip"] ? 90 : null)
+
+  path.projection(projections[value])
+  return
+  if(value == 'rectangular') {
+    path = d3.geo.path().projection(function(coordinates){
+     console.log(coordinates[0], coordinates[1])
+     return [
+           wrapIndex(coordinates[0], width),
+           wrapIndex(coordinates[1], height),
+           ];
+    });
+    config['clip'] = false
+  } else {
+    projection.mode(value)
+    path = d3.geo.path().projection(projection)
+  }
+
+  force.start()
+});
+
+var clipChanger = gui.add(config, "clip").listen();
+clipChanger.onChange(function(value) {
+  projection.clipAngle(value ? 90 : null)
+  force.start()
+});
+
+var fl = gui.addFolder('Force Layout');
+fl.open()
+
+var frictionChanger = fl.add(config, "friction", 0, 1);
+frictionChanger.onChange(function(value) {
+  force.friction(value)
+  force.start()
+});
+
+var linkDistanceChanger = fl.add(config, "linkDistance", 0, 30);
+linkDistanceChanger.onChange(function(value) {
+  force.linkDistance(value)
+  force.start()
+});
+
+var linkStrengthChanger = fl.add(config, "linkStrength", 0, 1);
+linkStrengthChanger.onChange(function(value) {
+  force.linkStrength(value)
+  force.start()
+});
+
+var chargeChanger = fl.add(config,"charge", 0, 500);
+chargeChanger.onChange(function(value) {
+  force.charge(-value)
+  force.start()
+});
+
+var gravityChanger = fl.add(config,"gravity", 0, 1);
+gravityChanger.onChange(function(value) {
+  force.gravity(value)
+  force.start()
+});
+
+var thetaChanger = fl.add(config,"theta", 0, 1);
+thetaChanger.onChange(function(value) {
+  force.theta(value)
+  force.start()
+});
+
+var width = window.innerWidth,
+    height = window.innerHeight - 5,
+    fill = d3.scale.category20();
+var width = 2500, height = 2500;
+
+var projection = projections[config["projection"]]
+    .scale(height/2)
+    .translate([(width/2), height/2])
+    .clipAngle(config["clip"] ? 90 : null)
+
+var force = d3.layout.force()
+    .linkDistance(config["linkDistance"])
+    .linkStrength(function(d) {
+    if (d.RefType =="Java Implement Couple") {return 0.0} //inplementation
+    else if (d.RefKind =="Define") {return 0.0} //method return
+    else if (d.RefKind =="Typed") {return 0.0} //method param
+    else {return config["linkStrength"]}}) //class and interface inheritance extends
+    .gravity(config["gravity"])
+    .size([width, height])
+    .charge(-config["charge"]);
+d3.csv("java_parsed_stitch_166pkg_objsplit_withparents.csv", function(error, links) {
+//d3.csv("android_parsed_stitch_infringed.csv", function(error, links) {
+  links.forEach(function(link) {
+    link.source = nodeByName(link.EntName_src);
+    link.target = nodeByName(link.EntName_target);
+ 
+//Create a variable for isIO/nio
+  if (link.EntName_src.indexOf("java.io") > -1 || link.EntName_src.indexOf("java.nio") > -1)
+      {link.source.isIO = 1;}
+  if (link.EntName_target.indexOf("java.io") > -1 || link.EntName_target.indexOf("java.nio") > -1)
+      {link.target.isIO = 1;}
+  if (link.source.isIO == 1 && link.target.isIO == 1) {link.isIO = 1;}
+
+
+  if (link.EntName_src.indexOf("java.lang") > -1)
+  {link.source.isLang = 1;}
+  if (link.EntName_target.indexOf("java.lang") > -1)
+    {link.target.isLang = 1;}
+  if (link.source.isLang == 1 || link.target.isLang == 1)
+    {link.isLang = 1;}
+
+  var index;
+  for (index = 0; index < myGoldArray.length; index++)
+  {
+    if (link.EntName_src.indexOf(myGoldArray[index]) > -1)
+    {link.source.is61 = 1;}
+    if (link.EntName_target.indexOf(myGoldArray[index]) > -1)
+    {link.target.is61 = 1;}
+  }
+ // if (link.source.is61 == 1 || link.target.is61 == 1)
+  if (link.Is_Infringed == "purple")
+    {link.is61 = 1;}
+
+
+  if (link.Is_Infringed == toMatch || link.Is_Infringed == "purple") {
+    nodeByName(link.EntName_src).infringed = 1
+    nodeByName(link.EntName_target).infringed = 1
+  link.infringed = 1}   
+
+  // define whether a node is class or interface
+  if ( link.EntType_src.indexOf("Class") > -1 )
+    {nodeByName(link.EntName_src).type = "Class";}
+  else if (link.EntType_src.indexOf("Method") > -1)
+    {nodeByName(link.EntName_src).type = "Class";}
+  else {nodeByName(link.EntName_src).type = "Interface"};
+
+  // degine whether a node is 37
+  if (link.is37 == "1") {nodeByName(link.EntName_target).is37 = 1};
+  
+
+  });
+  var nodes = d3.values(nodesByName);
+    function nodeByName(name) {
+    return nodesByName[name] || (nodesByName[name] = {name: name});
+  }
+
+
+
+
+var path = d3.geo.path()
+    .projection(projection)
+    path.pointRadius(8)
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .call(d3.behavior.drag()
+      .origin(function() { var r = projection.rotate(); return {x: 2 * r[0], y: -2 * r[1]}; })
+      .on("drag", function() { force.start(); var r = [d3.event.x / 2, -d3.event.y / 2, projection.rotate()[2]]; t0 = Date.now(); origin = r; projection.rotate(r); }))
+
+
+
+var link = svg.selectAll("path.link")
+    .data(links)
+    .enter().append("path")
+     .attr("class", function(d) {
+    if (d.Is_Infringed == toMatch) {return "inflink";} //implement
+
+    if (d.RefType == "Java Implement Couple") {return "implementlink"} //implement
+    else if (d.RefKind == "Define") {return "implementlink"} //method
+    else if (d.RefKind == "Typed") {return "implementlink"} //method
+    else if (d.EntType_src.indexOf("Class") > -1) {return "classlink"} //class extension
+    else if (d.EntType_src.indexOf("Interface") > -1) {return "interfacelink"} //interface extension
+    else { return "link"};}); 
+
+var node = svg.selectAll("path.node")
+    .data(nodes)
+    .enter().append("path")
+         .style("fill", function(d) {
+    if (d.Is_Infringed == toMatch) {return "crimson";} //implement
+
+    else if (d.type == "Interface") {return "green"} //implement
+    else { return "steelblue"};}); 
+
+
+    var nodeSpecial = nodes.filter(function(d){return d.is37 == 1});
+
+
+var label = svg.selectAll("text")
+    .data(nodeSpecial)
+    .enter().append("text").text(function(d){return d.name.toUpperCase()})
+    .attr("dx",16).attr("dy",".35em") .attr("class","shadow") .style("font", "30px Georgia, serif")
+
+var label2 = svg.selectAll("text2")
+    .data(nodeSpecial)
+    .enter().append("text").text(function(d){return d.name.toUpperCase()})
+    .attr("dx",16).attr("dy",".35em").style("font", "30px Georgia, serif")
+
+
+force
+    .nodes(nodes)
+    .links(links)
+    .on("tick", tick)
+    .start();
+
+function tick() {
+  node.attr("d", function(d) { var p = path({"type":"Point","coordinates":[d.x/5, d.y/5]}); return p ? p : 'M 0 0' });
+  link.attr("d", function(d) { var p = path({"type":"LineString","coordinates":[[d.source.x/5, d.source.y/5],[d.target.x/5, d.target.y/5]]}); return p ? p : 'M 0 0' });
+
+    label.attr('y', function(d){
+      var p = path({"type":"Point","coordinates":[d.x/5, d.y/5]}); 
+      n_y = 0
+      if(p){
+        n_y = parseFloat(p.split(",")[1].replace("M","").replace("m0",""))
+      }
+      return p ? n_y : 0
+    })
+    .attr('x', function(d){
+      var p = path({"type":"Point","coordinates":[d.x/5, d.y/5]}); 
+      if(p){
+        n_x = parseFloat(p.split(",")[0].replace("M","").replace("m0",""))
+      }
+      return p ? n_x : 0
+    });
+    label2.attr('y', function(d){
+      var p = path({"type":"Point","coordinates":[d.x/5, d.y/5]}); 
+      n_y = 0
+      if(p){
+        n_y = parseFloat(p.split(",")[1].replace("M","").replace("m0",""))
+      }
+      return p ? n_y : 0
+    })
+    .attr('x', function(d){
+      var p = path({"type":"Point","coordinates":[d.x/5, d.y/5]}); 
+      if(p){
+        n_x = parseFloat(p.split(",")[0].replace("M","").replace("m0",""))
+      }
+      return p ? n_x : 0
+    });
+
+}
+
+
+
+updateVisibility();
+updateColour();
+
+});
+
+//toggles the visibility of non io and nio nodes
+function updateVisibility() {
+  console.log("updating visibility");
+  var link = d3.select("body").selectAll("svg").selectAll("path.link")
+  var node = d3.select("body").selectAll("svg").selectAll("path.node")
+
+  link.select("line")
+  .attr("visibility", function(d) {
+  if (d.isIO != 1 && onlyIOIsOn) {return "hidden"}
+  else if (!d.infringed && onlyInfIsOn) {return "hidden"}
+  else if (d.isLang == 1 && onlyInfIsOn && !showJavaLangIsOn) { return "hidden"}
+  else if (d.is61 == 1 && onlyInfIsOn && !show61IsOn) {    return "hidden"}
+  else if (!showImplementationLinksIsOn && (d.RefType == "Java Implement Couple")) {return "hidden"}
+  else if (!showMethodLinksIsOn && ( d.RefKind == "Define" || d.RefKind == "Typed")) {return "hidden"}
+  else if (!showClassExtensionLinksIsOn && d.EntType_src.indexOf("Class") > -1) {return "hidden"}
+  else if (!showInterfaceExtensionLinksIsOn && d.EntType_src.indexOf("Interface") > -1) {return "hidden"}
+    else {return "visible"}})
+  
+  node.selectAll("circle")
+  .attr("visibility", function(d) {
+    if (d.isIO != 1 && onlyIOIsOn) {return "hidden"}
+    else if (d.infringed != 1 && onlyInfIsOn) {return "hidden"}
+    else if (d.isLang == 1 && onlyInfIsOn && !showJavaLangIsOn) {return "hidden"}
+    else if (d.is61 == 1 && onlyInfIsOn && !show61IsOn) {return "hidden"}
+    else if (!showClassNodesIsOn && d.type != "Interface") {return "hidden"}
+    else if (!showInterfaceNodesIsOn && d.type == "Interface") {return "hidden"}
+    else {return "visible"}})
+    node.selectAll("text")
+  .attr("visibility", function(d) {
+    if (d.isIO != 1 && onlyIOIsOn) {return "hidden"}
+    else if (d.infringed != 1 && onlyInfIsOn) {return "hidden"}
+    else if (!showClassNodesIsOn && d.type != "Interface") {return "hidden"}
+    else if (!showInterfaceNodesIsOn && d.type == "Interface") {return "hidden"}
+    else {return "visible"}})
+}
+
+ function updateColour() {
+    console.log("updating colour");
+    var link = d3.select("body").selectAll("svg").selectAll("path.node")
+    var node = d3.select("body").selectAll("svg").selectAll("path.link")
+
+    link.select("line")
+    .attr("style", function(d) {
+    if (d.infringed && infIsOn) {
+      if ((d.isLang == 1 && !showJavaLangIsOn) || (d.is61 == 1 && !show61IsOn)) {return "stroke:grey"}
+      else{ return "stroke:crimson"}
+    }
+    else {return "stroke:grey"}})
+
+  node.select("circle")
+  .attr("style", function(d) {
+    if (d.infringed == 1 && infIsOn) {
+      if ((d.isLang == 1 && !showJavaLangIsOn) || (d.is61 == 1 && !show61IsOn)) {
+        if (d.type == "Interface") {return "fill:green"}
+        else {return "fill:steelblue"}
+      }
+      else {return "fill:crimson"}
+    }
+    else if (d.type == "Interface") {return "fill:green"}
+    else {return "fill:steelblue"}})
+
+  }
+    </script>
+  </body>
+</html>
